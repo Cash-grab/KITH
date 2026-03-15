@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block content %}
+  <section class="info-box">
+    <p>See all open requests on the map. Click a pin to volunteer and help your neighbors.</p>
+  </section>
+
+  <div id="map" style="height: 55vh; min-height: 380px;"></div>
+
+  <div class="controls">
+    <label>Filter by type <select id="filterNeedType"><option value="">All</option><option value="medical">Medical</option><option value="food">Food</option><option value="shelter">Shelter</option><option value="childcare">Childcare</option><option value="other">Other</option></select></label>
+    <label>Filter by status <select id="filterStatus"><option value="open,requested" selected>Open/Requested</option><option value="open">Open</option><option value="requested">Requested</option><option value="closed">Closed</option></select></label>
+    <label>Sort by <select id="sortBy"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="type">Type</option></select></label>
+    <label>Show emergency on top <input type="checkbox" id="showEmergencyTop" checked></label>
+  </div>
+
+  <div class="legend">
+    <strong>Legend:</strong>
+    <span class="legend-item" style="background:#6b7280">Medical</span>
+    <span class="legend-item" style="background:#22c55e">Food</span>
+    <span class="legend-item" style="background:#60a5fa">Shelter</span>
+    <span class="legend-item" style="background:#f472b6">Childcare</span>
+    <span class="legend-item" style="background:#a3a3a3">Other</span>
+    <span class="legend-item" style="background:#dc2626">Emergency</span>
+  </div>
+
+  <div id="list-cards" class="needs-cards"></div>
+
+  <script>
+    const map = L.map('map').setView([20.0, 0.0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const clusterLayer = L.markerClusterGroup();
+    map.addLayer(clusterLayer);
+    const userLoggedIn = {{ 'true' if current_user else 'false' }};
+    const currentUserId = {{ current_user.id if current_user else 'null' }};
+    const isAdmin = {{ 'true' if current_user and current_user.role == 'admin' else 'false' }};
+
+    function getCsrfToken() {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return (meta && meta.content) || '';
+    }
+
+    document.getElementById('filterNeedType').addEventListener('change', loadNeeds);
+    document.getElementById('filterStatus').addEventListener('change', loadNeeds);
+    document.getElementById('sortBy').addEventListener('change', loadNeeds);
+    document.getElementById('showEmergencyTop').addEventListener('change', loadNeeds);
+
+    async function loadNeeds() {
+      const type = document.getElementById('filterNeedType').value;
+      const status = document.getElementById('filterStatus').value || 'open,requested';
+      const sortBy = document.getElementById('sortBy').value;
+
+      const query = new URLSearchParams({ page: 1, per_page: 100 });
+      if (type) query.set('type', type);
+      if (status) query.set('status', status);
+
+      try {
+        const res = await fetch('/api/needs?' + query.toString());
+        const payload = await res.json();
+        const needs = (payload.data || []).slice();
+
+        const showEmergencyTop = document.getElementById('showEmergencyTop').checked;
+
+        if (showEmergencyTop) {
+          needs.sort((a, b) => (b.emergency || 0) - (a.emergency || 0));
+        }
+
+        if (sortBy === 'oldest') {
+          needs.reverse();
+        } else if (sortBy === 'type') {
+          needs.sort((a, b) => a.need_type.localeCompare(b.need_type));
+        }
+
+        renderMap(needs);
+        renderCards(needs);
+      } catch (err) {
+        console.error('Failed to load needs:', err);
+      }
+    }
+
+    function createColorIcon(color) {
+      const key = color.replace('#', '');
+      return L.icon({
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -30],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        className: `colored-marker-${key}`
+      });
+    }
+
+    function renderMap(needs) {
+      clusterLayer.clearLayers();
+      needs.forEach((need) => {
+        const colorMap = {
+        emergency: '#dc2626',
+        medical: '#ffffff',
+        food: '#22c55e',
+        shelter: '#60a5fa',
+        childcare: '#f472b6',
+        other: '#a3a3a3'
+      };
+      const color = need.emergency ? colorMap.emergency : (colorMap[need.need_type] || colorMap.other);
+      const marker = L.marker([need.latitude, need.longitude], {
+        icon: createColorIcon(color)
+      });
+      const volunteerLabel = need.volunteer ? `Volunteers: ${need.volunteer}<br />` : 'Volunteers: None yet<br />';
+      const contactInfo = need.contact_info ? `Contact: ${need.contact_info}<br />` : '';
+      let volunteerButton;
+      if (!userLoggedIn) {
+        volunteerButton = `<a href="/login?next=/" class="btn-inline" style="background:#9ca3af;">Login to volunteer</a>`;
+      } else {
+        volunteerButton = `<button onclick="volunteer(${need.id});" class="btn-inline">Volunteer</button>`;
+      }
+
+        marker.bindPopup(`
+          <strong>${need.name}</strong><br />
+          ${need.description}<br />
+          <em>Type:</em> ${need.need_type}<br />
+          <em>Status:</em> ${need.status}<br />
+          ${volunteerLabel}<br />
+          ${volunteerButton}
+        `);
+        clusterLayer.addLayer(marker);
+      });
+
+      if (needs.length > 0) {
+        const group = L.featureGroup(needs.map(need => L.marker([need.latitude, need.longitude])));
+        map.fitBounds(group.getBounds().pad(0.2));
+      }
+    }
+
+    function renderCards(needs) {
+      const container = document.getElementById('list-cards');
+      container.innerHTML = needs.length ? needs.map(need => {
+        let volunteerAction;
+        if (!userLoggedIn) {
+          volunteerAction = `<a href="/login?next=/" class="btn-inline" style="background:#9ca3af;">Login to volunteer</a>`;
+        } else if (need.status === 'closed') {
+          volunteerAction = `<button class="btn-inline" disabled style="background:#9ca3af;">Closed</button>`;
+        } else {
+          volunteerAction = `<button onclick="volunteer(${need.id});" class="btn-inline">Volunteer</button>`;
+        }
+
+        const canEdit = currentUserId && (currentUserId === need.created_by || isAdmin);
+        const editLink = canEdit ? `<a href="/edit/${need.id}" class="btn-inline" style="margin-left:0.5rem;">Edit</a>` : '';
+        return `
+        <article class="need-card${need.emergency ? ' urgent' : ''}">
+          <div class="need-title">${need.name}${need.emergency ? ' (EMERGENCY)' : ''}</div>
+          <div>${need.description}</div>
+          <div class="need-meta">
+            <span class="type-pill type-${need.need_type}">${need.need_type}</span>
+            Status: ${need.status} • Volunteers: ${need.volunteer || 'None'} • Created by: ${need.creator_username || '-'}
+          </div>
+          <div class="need-meta">Contact: ${need.contact_info || 'N/A'}</div>
+          ${volunteerAction}
+          ${editLink}
+        </article>
+      `;
+      }).join('') : '<p>No needs match the filters.</p>';
+    }
+
+    async function volunteer(needId) {
+      if (!confirm('Volunteer for this need?')) return;
+      const res = await fetch(`/volunteer/${needId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify({}),
+      });
+      const payload = await res.json();
+      if (res.ok) {
+        showToast(payload.message || 'Volunteered successfully!', 'success');
+        loadNeeds();
+      } else {
+        showToast(payload.message || 'Could not volunteer.', 'error');
+      }
+    }
+
+    loadNeeds();
+    setInterval(loadNeeds, 15000);
+  </script>
+{% endblock %}

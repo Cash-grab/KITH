@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Map of Fun</h2>
+  <section class="info-box">Only logged in users can see and create fun community events.</section>
+
+  <div id="fun-map" style="height: 60vh; min-height: 400px;"></div>
+
+  <div class="controls">
+    <a href="{{ url_for('add_fun') }}" class="btn-inline">Post an Event</a>
+  </div>
+
+  <div id="fun-cards" class="needs-cards"></div>
+
+  <script>
+    const map = L.map('fun-map').setView([20.0, 0.0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    async function loadEvents() {
+      const res = await fetch('/api/fun');
+      const payload = await res.json();
+      const events = payload.events || [];
+
+      events.forEach(event => {
+        const marker = L.circleMarker([event.latitude, event.longitude], {
+          radius: 8,
+          fillColor: '#eab308',
+          fillOpacity: 0.9,
+          color: '#92400e',
+          weight: 1
+        }).addTo(map);
+        marker.bindPopup(`<strong>${event.title}</strong><br />${event.description}<br />Type: ${event.event_type}<br />Date: ${event.event_date || 'N/A'}`);
+      });
+
+      if (events.length > 0) {
+        const group = L.featureGroup(events.map(e => L.marker([e.latitude, e.longitude])));
+        map.fitBounds(group.getBounds().pad(0.2));
+      }
+
+      const cards = document.getElementById('fun-cards');
+      cards.innerHTML = events.map(event => `
+        <article class="need-card">
+          <div class="need-title">${event.title}</div>
+          <div>${event.description}</div>
+          <div class="need-meta">Type: ${event.event_type} • Date: ${event.event_date || 'N/A'} • By: ${event.creator_username || 'Unknown'}</div>
+        </article>
+      `).join('');
+    }
+
+    loadEvents();
+  </script>
+{% endblock %}

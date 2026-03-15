@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>User Profile: {{ user.username }}</h2>
+  <div class="profile-grid">
+    <section class="profile-panel">
+      <h3>Personal Information</h3>
+      <p><strong>Username:</strong> {{ user.username }}</p>
+      <p><strong>Role:</strong> {{ user.role }}</p>
+      <p><strong>Joined:</strong> {{ user.created_at }}</p>
+    </section>
+
+    <section class="profile-panel">
+      <h3>Requests Posted</h3>
+      {% if posted_needs %}
+        <ul>
+          {% for need in posted_needs %}
+            <li>{{ need.name }} ({{ need.need_type }}, {{ need.status }}) <a href="/edit/{{ need.id }}">Edit</a></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No posted needs yet.</p>
+      {% endif %}
+    </section>
+
+    <section class="profile-panel">
+      <h3>Volunteering</h3>
+      {% if volunteered_needs %}
+        <ul>
+          {% for need in volunteered_needs %}
+            <li>{{ need.name }} ({{ need.need_type }}, {{ need.status }}) <button onclick="unvolunteer({{ need.id }})">Unvolunteer</button></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No volunteering assignments yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <script>
+    function unvolunteer(id) {
+      fetch(`/unvolunteer/${id}`, { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast(data.message, 'success');
+            location.reload();
+          } else {
+            showToast(data.message, 'error');
+          }
+        });
+    }
+  </script>
+{% endblock %}

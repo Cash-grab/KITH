@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Map of Needs</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="container">
+        <h1><a href="{{ url_for('index') }}">Map of Needs</a></h1>
+        <nav>
+          <a href="{{ url_for('add_need') }}">Request Help</a>
+          {% if current_user %}
+            <a href="{{ url_for('my_requests') }}">My Requests</a>
+            <a href="{{ url_for('profile', username=current_user.username) }}">Profile</a>
+            <a href="{{ url_for('fun_map') }}">Map of Fun</a>
+          {% endif %}
+          {% if current_user and current_user.role == 'admin' %}
+            <a href="{{ url_for('admin') }}">Admin</a>
+          {% endif %}
+          {% if current_user %}
+            <span class="user-pill">{{ current_user.username }}</span>
+            <a href="{{ url_for('logout') }}">Logout</a>
+          {% else %}
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('register') }}">Register</a>
+          {% endif %}
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">{% block content %}{% endblock %}</main>
+
+    <div id="toast" class="toast"></div>
+    <footer class="app-footer">
+      <div class="container">Open source project for FOSS United. No monetization. No tracking.</div>
+    </footer>
+    <script>
+      function showToast(message, type='info') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast toast-' + type;
+        toast.style.opacity = '1';
+        setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+      }
+      window.showToast = showToast;
+    </script>
+  </body>
+</html>

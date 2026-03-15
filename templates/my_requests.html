@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>My Requests</h2>
+  <div class="needs-cards">
+    {% for need in needs %}
+      <article class="need-card{% if need.emergency %} urgent{% endif %}">
+        <form method="post" action="{{ url_for('delete_need', need_id=need.id) }}" class="delete-needs-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="delete-button" title="Delete request">🗑</button>
+        </form>
+
+        <div class="need-title">{{ need.name }}{% if need.emergency %} <span class="urgent-tag">(EMERGENCY)</span>{% endif %}</div>
+        <div>{{ need.description }}</div>
+        <div class="need-meta">
+          <span class="type-pill type-{{ need.need_type }}">{{ need.need_type }}</span>
+          Status: {{ need.status }} • Volunteers: {{ need.volunteer or 'None' }}
+        </div>
+        <div class="need-meta">Contact: {{ need.contact_info or 'N/A' }}</div>
+        <div>
+          <a href="/edit/{{ need.id }}" class="btn-inline">Edit</a>
+
+          {% if need.status == 'closed' %}
+            <form method="post" action="{{ url_for('reopen_need', need_id=need.id) }}" style="display:inline; margin-left: 6px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn-inline">Reopen</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('resolve_own_need', need_id=need.id) }}" style="display:inline; margin-left: 6px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn-inline">Mark as resolved</button>
+            </form>
+          {% endif %}
+
+          {% if need.volunteer_user_id == current_user.id %}
+            <button class="btn-inline" onclick="unvolunteer({{ need.id }})">Unvolunteer</button>
+          {% endif %}
+        </div>
+      </article>
+    {% else %}
+      <p>No requests yet.</p>
+    {% endfor %}
+  </div>
+
+  <script>
+    function unvolunteer(id) {
+      fetch(`/unvolunteer/${id}`, { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast(data.message, 'success');
+            location.reload();
+          } else {
+            showToast(data.message, 'error');
+          }
+        });
+    }
+  </script>
+{% endblock %}

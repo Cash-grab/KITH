@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Request Help</h2>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <form action="" method="post" class="form-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Name of requester <span class="required">*</span><input name="name" required /></label>
+    <label>Description <span class="required">*</span><textarea name="description" rows="3" required></textarea></label>
+    <label>Type <select name="need_type">
+      <option value="medical">Medical</option>
+      <option value="food">Food</option>
+      <option value="shelter">Shelter</option>
+      <option value="childcare">Childcare</option>
+      <option value="other" selected>Other</option>
+    </select></label>
+    <label>Contact information <span class="required">*</span><input name="contact_info" required placeholder="phone/email" /></label>
+    <label><input type="checkbox" name="emergency" /> Emergency priority (red)</label>
+    <div class="row-inline">
+      <label>Latitude <span class="required">*</span><input id="lat" name="latitude" required type="text" /></label>
+      <label>Longitude <span class="required">*</span><input id="lng" name="longitude" required type="text" /></label>
+    </div>
+    <button type="button" class="geo-btn" onclick="prefillGeolocation()">Use my current location</button>
+    <button type="submit">Submit need</button>
+  </form>
+
+  <div class="small-map-wrapper">
+    <p>Drag marker to fine-tune location (or update lat/lng fields manually):</p>
+    <div id="location-map" class="small-map"></div>
+  </div>
+
+  <script>
+    const locationMap = L.map('location-map').setView([20.0, 0.0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(locationMap);
+
+    let currentMarker = L.marker([20.0, 0.0], { draggable: true }).addTo(locationMap);
+
+    function setMarker(lat, lng) {
+      currentMarker.setLatLng([lat, lng]);
+      locationMap.setView([lat, lng], 13);
+      locationMap.invalidateSize();
+    }
+
+    function updateFieldsFromMarker() {
+      const latlng = currentMarker.getLatLng();
+      document.getElementById('lat').value = latlng.lat.toFixed(6);
+      document.getElementById('lng').value = latlng.lng.toFixed(6);
+    }
+
+    function updateMarkerFromFields() {
+      const lat = parseFloat(document.getElementById('lat').value);
+      const lng = parseFloat(document.getElementById('lng').value);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setMarker(lat, lng);
+      }
+    }
+
+    currentMarker.on('dragend', updateFieldsFromMarker);
+
+    document.getElementById('lat').addEventListener('change', updateMarkerFromFields);
+    document.getElementById('lng').addEventListener('change', updateMarkerFromFields);
+
+    // ensure map is properly shown after render
+    setTimeout(() => { locationMap.invalidateSize(); }, 250);
+
+    function prefillGeolocation() {
+      if (!navigator.geolocation) {
+        showToast('Geolocation not supported by your browser.', 'warning');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(function(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        document.getElementById('lat').value = lat.toFixed(6);
+        document.getElementById('lng').value = lng.toFixed(6);
+        setMarker(lat, lng);
+        showToast('Location filled from your device.', 'success');
+      }, function() {
+        showToast('Unable to retrieve your location.', 'error');
+      });
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,22 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Database files (SQLite)
+*.db
+*.sqlite3
+instance/
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables (for security)
+.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db

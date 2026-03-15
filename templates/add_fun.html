@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Post a Community Fun Event</h2>
+  <form action="" method="post" class="form-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Event title <input name="title" required /></label>
+    <label>Description <textarea name="description" rows="4" required></textarea></label>
+    <label>Event type <select name="event_type">
+      <option value="community">Community</option>
+      <option value="meetup">Meetup</option>
+      <option value="volunteering">Volunteering</option>
+      <option value="other" selected>Other</option>
+    </select></label>
+    <label>Date <input type="date" name="event_date" /></label>
+    <div class="row-inline">
+      <label>Latitude <input id="lat" name="latitude" required type="text" /></label>
+      <label>Longitude <input id="lng" name="longitude" required type="text" /></label>
+    </div>
+    <button type="submit">Post event</button>
+  </form>
+{% endblock %}
