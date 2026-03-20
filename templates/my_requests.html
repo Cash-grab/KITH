@@ -1,43 +1,46 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h2>My Requests</h2>
+  <h2 class="section-title">My Community Requests</h2>
   <div class="needs-cards">
     {% for need in needs %}
       <article class="need-card{% if need.emergency %} urgent{% endif %}">
         <form method="post" action="{{ url_for('delete_need', need_id=need.id) }}" class="delete-needs-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button type="submit" class="delete-button" title="Delete request">🗑</button>
+          <button type="submit" class="delete-button" title="Delete request" onclick="return confirm('Delete this request?')">🗑</button>
         </form>
 
-        <div class="need-title">{{ need.name }}{% if need.emergency %} <span class="urgent-tag">(EMERGENCY)</span>{% endif %}</div>
-        <div>{{ need.description }}</div>
+        <div class="need-title">{{ need.name }}</div>
+        <div class="need-description">{{ need.description }}</div>
+        
         <div class="need-meta">
           <span class="type-pill type-{{ need.need_type }}">{{ need.need_type }}</span>
-          Status: {{ need.status }} • Volunteers: {{ need.volunteer or 'None' }}
+          <span><strong>Status:</strong> {{ need.status }}</span>
+          <span><strong>Volunteers:</strong> {{ need.volunteer or 'None' }}</span>
         </div>
-        <div class="need-meta">Contact: {{ need.contact_info or 'N/A' }}</div>
-        <div>
-          <a href="/edit/{{ need.id }}" class="btn-inline">Edit</a>
+        <div class="need-meta" style="border:none; padding:0; margin-top: 0.5rem;">
+           <span><strong>Contact:</strong> {{ need.contact_info or 'N/A' }}</span>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <a href="/edit/{{ need.id }}" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-width: 1px;">Edit Details</a>
 
           {% if need.status == 'closed' %}
-            <form method="post" action="{{ url_for('reopen_need', need_id=need.id) }}" style="display:inline; margin-left: 6px;">
+            <form method="post" action="{{ url_for('reopen_need', need_id=need.id) }}" style="display:inline;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn-inline">Reopen</button>
+              <button type="submit" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">Reopen Request</button>
             </form>
           {% else %}
-            <form method="post" action="{{ url_for('resolve_own_need', need_id=need.id) }}" style="display:inline; margin-left: 6px;">
+            <form method="post" action="{{ url_for('resolve_own_need', need_id=need.id) }}" style="display:inline;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn-inline">Mark as resolved</button>
+              <button type="submit" class="btn btn-success" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">Mark as Resolved</button>
             </form>
-          {% endif %}
-
-          {% if need.volunteer_user_id == current_user.id %}
-            <button class="btn-inline" onclick="unvolunteer({{ need.id }})">Unvolunteer</button>
           {% endif %}
         </div>
       </article>
     {% else %}
-      <p>No requests yet.</p>
+      <div class="info-box">
+        <p>You haven't posted any requests yet. <a href="{{ url_for('add_need') }}">Create one now</a> if you need help.</p>
+      </div>
     {% endfor %}
   </div>
 

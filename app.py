@@ -1,32 +1,80 @@
+from functools import wraps
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
+from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
+from flask_wtf.csrf import CSRFError
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
 import os
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(BASE_DIR, 'data.db')
+from config import Config
 
 app = Flask(__name__)
-app.secret_key = 'change-this-secret-for-production'
-app.config['WTF_CSRF_ENABLED'] = True
-app.config['WTF_CSRF_CHECK_DEFAULT'] = True
+app.config.from_object(Config)
+
 csrf = CSRFProtect(app)
+db = SQLAlchemy(app)
 
+# Models
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(32), nullable=False, default='user')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    # List of needs created by this user.
+    needs = db.relationship('Need', back_populates='creator', lazy='dynamic', foreign_keys='Need.created_by')
+    volunteered_needs = db.relationship('Need', back_populates='volunteer_user', lazy='dynamic', foreign_keys='Need.volunteer_user_id')
+    # List of fun events created by this user. This is an easter egg! 
+    fun_events = db.relationship('FunEvent', back_populates='creator', lazy='dynamic')
 
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+class Need(db.Model):
+    __tablename__ = 'needs'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    contact_info = db.Column(db.String(255), nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    need_type = db.Column(db.String(64), nullable=False, default='other')
+    status = db.Column(db.String(32), nullable=False, default='open')
+    emergency = db.Column(db.Boolean, nullable=False, default=False)
+    volunteer = db.Column(db.Text, nullable=True)
+    volunteer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    creator = db.relationship('User', foreign_keys=[created_by], back_populates='needs')
+    volunteer_user = db.relationship('User', foreign_keys=[volunteer_user_id], back_populates='volunteered_needs')
+
+class FunEvent(db.Model):
+    __tablename__ = 'fun_events'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    event_type = db.Column(db.String(64), nullable=False, default='community')
+    event_date = db.Column(db.String(64), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    creator = db.relationship('User', foreign_keys=[created_by], back_populates='fun_events')
+
+# Utility helpers
 def current_user():
     user_id = session.get('user_id')
     if not user_id:
         return None
-    conn = get_db_connection()
-    user = conn.execute('SELECT id, username, role FROM users WHERE id = ?', (user_id,)).fetchone()
-    conn.close()
-    return user
+    return User.query.filter_by(id=user_id).first()
 
 from functools import wraps
 
@@ -39,125 +87,108 @@ def login_required(view):
             flash('Please log in to continue.', 'error')
             return redirect(url_for('login'))
         return view(*args, **kwargs)
+
     return wrapped_view
 
+
 def init_db():
-    conn = get_db_connection()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS needs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT NOT NULL,
-            latitude REAL NOT NULL,
-            longitude REAL NOT NULL,
-            need_type TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'open',
-            emergency INTEGER NOT NULL DEFAULT 0,
-            volunteer TEXT DEFAULT NULL,
-            volunteer_user_id INTEGER DEFAULT NULL,
-            created_by INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    exists = [r['name'] for r in conn.execute("PRAGMA table_info('needs')").fetchall()]
-    if 'created_by' not in exists:
-        conn.execute('ALTER TABLE needs ADD COLUMN created_by INTEGER')
-    if 'emergency' not in exists:
-        conn.execute('ALTER TABLE needs ADD COLUMN emergency INTEGER NOT NULL DEFAULT 0')
-    if 'volunteer_user_id' not in exists:
-        conn.execute('ALTER TABLE needs ADD COLUMN volunteer_user_id INTEGER DEFAULT NULL')
-    if 'contact_info' not in exists:
-        conn.execute('ALTER TABLE needs ADD COLUMN contact_info TEXT DEFAULT NULL')
-    if 'volunteer' not in exists:
-        conn.execute('ALTER TABLE needs ADD COLUMN volunteer TEXT DEFAULT NULL')
+    db.create_all()
 
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    # In production, __do not__ auto-create an admin with fixed credentials.
+    # This only executes when `SEED_ADMIN` environment variable is set.
 
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS fun_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            latitude REAL NOT NULL,
-            longitude REAL NOT NULL,
-            event_type TEXT NOT NULL DEFAULT 'community',
-            event_date TEXT,
-            created_by INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
 
-    # create default admin user if none exists
-    user_row = conn.execute('SELECT id FROM users WHERE username = ?', ('admin',)).fetchone()
-    if not user_row:
-        conn.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-                     ('admin', generate_password_hash('admin123'), 'admin'))
-    conn.commit()
-    conn.close()
+#   TO-DO - Add a command line option to create an admin user with custom credentials, and remove the default admin seeding for better security.
+# Enable admin seeding by wrting in .env. 
 
-def setup():
+
+
+
+
+    if os.getenv('SEED_ADMIN', 'false').lower() in ('1', 'true', 'yes'):
+        admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+        admin_password = os.getenv('ADMIN_PASSWORD', None)
+        if not admin_password:
+            raise RuntimeError('SEED_ADMIN enabled but ADMIN_PASSWORD is not set.')
+
+        admin = User.query.filter_by(username=admin_username).first()
+        if not admin:
+            admin = User(username=admin_username, role='admin')
+            admin.set_password(admin_password)
+            db.session.add(admin)
+            db.session.commit()
+
+
+# Flask 3 removed before_first_request; ensure database initializes on app startup
+with app.app_context():
     init_db()
 
-setup()
+app.logger.info('Starting app; SQLALCHEMY_DATABASE_URI=%s', app.config.get('SQLALCHEMY_DATABASE_URI'))
+
 
 @app.context_processor
 def inject_user():
     return {'current_user': current_user()}
 
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
+        try:
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
 
-        if not username or not password:
-            flash('Please provide username and password.', 'error')
+            if not username or not password:
+                flash('Please provide username and password.', 'error')
+                return redirect(url_for('register'))
+
+            if User.query.filter_by(username=username).first():
+                flash('Username already exists.', 'error')
+                return redirect(url_for('register'))
+
+            user = User(username=username)
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+
+            flash('Account created. Please log in.', 'success')
+            return redirect(url_for('login'))
+
+        except Exception as exc:
+            app.logger.exception('Registration failed')
+            db.session.rollback()
+            flash('Internal error during registration. Please try again.', 'error')
             return redirect(url_for('register'))
-
-        conn = get_db_connection()
-        if conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
-            conn.close()
-            flash('Username already exists.', 'error')
-            return redirect(url_for('register'))
-
-        conn.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
-                     (username, generate_password_hash(password)))
-        conn.commit()
-        conn.close()
-        flash('Account created. Please log in.', 'success')
-        return redirect(url_for('login'))
 
     return render_template('register.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
+        try:
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
 
-        conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-        conn.close()
+            user = User.query.filter_by(username=username).first()
+            if user is None or not user.check_password(password):
+                flash('Invalid username or password.', 'error')
+                return redirect(url_for('login'))
 
-        if user is None or not check_password_hash(user['password_hash'], password):
-            flash('Invalid username or password.', 'error')
+            session.clear()
+            session['user_id'] = user.id
+            flash('Logged in successfully.', 'success')
+            next_url = request.args.get('next') or url_for('index')
+            return redirect(next_url)
+
+        except Exception:
+            app.logger.exception('Login failed')
+            db.session.rollback()
+            flash('Internal error during login. Please try again.', 'error')
             return redirect(url_for('login'))
 
-        session.clear()
-        session['user_id'] = user['id']
-        flash('Logged in successfully.', 'success')
-        next_url = request.args.get('next') or url_for('index')
-        return redirect(next_url)
-
     return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
@@ -165,9 +196,12 @@ def logout():
     flash('Logged out.', 'success')
     return redirect(url_for('index'))
 
+
 @app.route('/')
 def index():
+    # A minimal home page; options for map is in template.
     return render_template('index.html')
+
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -179,9 +213,9 @@ def add_need():
         latitude = request.form.get('latitude', '').strip()
         longitude = request.form.get('longitude', '').strip()
         need_type = request.form.get('need_type', 'other').strip()
-        emergency = 1 if request.form.get('emergency') == 'on' else 0
+        emergency = True if request.form.get('emergency') == 'on' else False
 
-        if not name or not description or not latitude or not longitude or not contact_info:
+        if not all([name, description, contact_info, latitude, longitude]):
             flash('Please fill all required fields, including contact info.', 'error')
             return redirect(url_for('add_need'))
 
@@ -192,19 +226,24 @@ def add_need():
             flash('Latitude and longitude must be numeric.', 'error')
             return redirect(url_for('add_need'))
 
-        conn = get_db_connection()
         user = current_user()
-        created_by = user['id'] if user else None
-        conn.execute(
-            'INSERT INTO needs (name, description, contact_info, latitude, longitude, need_type, emergency, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (name, description, contact_info, latitude, longitude, need_type, emergency, created_by)
+        need = Need(
+            name=name,
+            description=description,
+            contact_info=contact_info,
+            latitude=latitude,
+            longitude=longitude,
+            need_type=need_type,
+            emergency=emergency,
+            created_by=user.id if user else None,
         )
-        conn.commit()
-        conn.close()
+        db.session.add(need)
+        db.session.commit()
         flash('Need posted successfully!', 'success')
         return redirect(url_for('index'))
 
     return render_template('add_request.html')
+
 
 @app.route('/api/needs')
 def api_needs():
@@ -214,113 +253,100 @@ def api_needs():
     per_page = int(request.args.get('per_page', 20))
     per_page = min(100, max(5, per_page))
 
-    allowed_status = {'open', 'requested', 'closed'}
-    where = ['status IN ("open", "requested")']
-    params = []
+    query = Need.query
 
     if status:
-        status_ids = [s.strip().lower() for s in status.split(',') if s.strip().lower() in allowed_status]
+        status_ids = [s.strip().lower() for s in status.split(',') if s.strip().lower() in ['open', 'requested', 'closed']]
         if status_ids:
-            placeholder = ','.join('?' for _ in status_ids)
-            where.append(f'status IN ({placeholder})')
-            params.extend(status_ids)
+            query = query.filter(Need.status.in_(status_ids))
+    else:
+        # Default to showing open and requested if no status specified
+        query = query.filter(Need.status.in_(['open', 'requested']))
 
     if need_type:
-        where.append('LOWER(need_type) = ?')
-        params.append(need_type)
+        query = query.filter(db.func.lower(Need.need_type) == need_type)
 
-    count_query = 'SELECT COUNT(*) FROM needs WHERE ' + ' AND '.join(where)
-    conn = get_db_connection()
-    total = conn.execute(count_query, params).fetchone()[0]
+    total = query.count()
+    needs = query.order_by(Need.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
 
-    data_query = 'SELECT needs.*, users.username as creator_username FROM needs LEFT JOIN users ON needs.created_by = users.id WHERE ' + ' AND '.join(where) + ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
-    params_for_data = params + [per_page, (page - 1) * per_page]
-    rows = conn.execute(data_query, params_for_data).fetchall()
-    conn.close()
+    data = []
+    for n in needs:
+        creator_username = n.creator.username if n.creator else 'Unknown'
+        data.append({
+            'id': n.id,
+            'name': n.name,
+            'description': n.description,
+            'contact_info': n.contact_info,
+            'latitude': n.latitude,
+            'longitude': n.longitude,
+            'need_type': n.need_type,
+            'status': n.status,
+            'emergency': int(n.emergency),
+            'volunteer': n.volunteer,
+            'volunteer_user_id': n.volunteer_user_id,
+            'created_by': n.created_by,
+            'created_at': n.created_at.isoformat(),
+            'creator_username': creator_username,
+        })
 
-    needs = []
-    for row in rows:
-        row_dict = dict(row)
-        row_dict['creator_username'] = row_dict.get('creator_username') or 'Unknown'
-        needs.append(row_dict)
     return jsonify({
         'total': total,
         'page': page,
         'per_page': per_page,
-        'data': needs,
+        'data': data,
     })
+
 
 @app.route('/volunteer/<int:need_id>', methods=['POST'])
 @login_required
 def volunteer(need_id):
-    data = request.get_json(silent=True) or request.form
-    volunteer_name = (data.get('volunteer') or current_user()['username'] or 'Anonymous').strip()
-    if not volunteer_name:
-        volunteer_name = 'Anonymous'
-
-    conn = get_db_connection()
-    cur = conn.execute('SELECT status, volunteer, volunteer_user_id FROM needs WHERE id = ?', (need_id,))
-    row = cur.fetchone()
-
-    if not row:
-        conn.close()
+    user = current_user()
+    need = Need.query.get(need_id)
+    if not need:
         return jsonify({'success': False, 'message': 'Need not found.'}), 404
 
-    if row['status'] == 'closed':
-        conn.close()
+    if need.status == 'closed':
         return jsonify({'success': False, 'message': 'Need is closed and cannot be volunteered.'}), 409
 
-    user = current_user()
-    volunteers = []
-    volunteer_raw = (row['volunteer'] or '').strip()
-    if volunteer_raw:
-        volunteers = [v.strip() for v in volunteer_raw.split(',') if v.strip()]
+    volunteer_name = request.form.get('volunteer') or user.username
+    volunteer_name = volunteer_name.strip() if volunteer_name else 'Anonymous'
 
+    volunteers = [v.strip() for v in (need.volunteer or '').split(',') if v.strip()]
     if volunteer_name in volunteers:
-        conn.close()
         return jsonify({'success': True, 'message': 'You are already in the volunteer list.'}), 200
 
     volunteers.append(volunteer_name)
-    merged = ', '.join(sorted(set(volunteers), key=lambda x: volunteers.index(x)))
-    new_status = 'requested'
-
-    # Always keep admin-created or first volunteer id to keep traceability, but prefer first volunteer id if not set.
-    volunteer_user_id = row['volunteer_user_id'] or user['id']
-
-    conn.execute('UPDATE needs SET status = ?, volunteer = ?, volunteer_user_id = ? WHERE id = ?',
-                 (new_status, merged, volunteer_user_id, need_id))
-
-    conn.commit()
-    conn.close()
+    need.volunteer = ', '.join(volunteers)
+    need.status = 'requested'
+    need.volunteer_user_id = need.volunteer_user_id or user.id
+    db.session.commit()
 
     return jsonify({'success': True, 'message': 'Thanks for volunteering!'}), 200
+
 
 @app.route('/edit/<int:need_id>', methods=['GET', 'POST'])
 @login_required
 def edit_need(need_id):
     user = current_user()
-    conn = get_db_connection()
-    need = conn.execute('SELECT * FROM needs WHERE id = ?', (need_id,)).fetchone()
-
+    need = Need.query.get(need_id)
     if not need:
-        conn.close()
         flash('Need not found.', 'error')
         return redirect(url_for('index'))
 
-    if need['created_by'] != user['id'] and user['role'] != 'admin':
-        conn.close()
+    if need.created_by != user.id and user.role != 'admin':
         flash('Permission denied.', 'error')
         return redirect(url_for('index'))
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         description = request.form.get('description', '').strip()
+        contact_info = request.form.get('contact_info', '').strip()
         latitude = request.form.get('latitude', '').strip()
         longitude = request.form.get('longitude', '').strip()
         need_type = request.form.get('need_type', 'other').strip()
-        emergency = 1 if request.form.get('emergency') == 'on' else 0
+        emergency = True if request.form.get('emergency') == 'on' else False
 
-        if not name or not description or not latitude or not longitude:
+        if not all([name, description, contact_info, latitude, longitude]):
             flash('Please fill all required fields.', 'error')
             return redirect(url_for('edit_need', need_id=need_id))
 
@@ -331,158 +357,241 @@ def edit_need(need_id):
             flash('Latitude and longitude must be numeric.', 'error')
             return redirect(url_for('edit_need', need_id=need_id))
 
-        contact_info = request.form.get('contact_info', '').strip()
-
-        if not contact_info:
-            flash('Please provide contact information.', 'error')
-            return redirect(url_for('edit_need', need_id=need_id))
-
-        conn.execute(
-            'UPDATE needs SET name = ?, description = ?, contact_info = ?, latitude = ?, longitude = ?, need_type = ?, emergency = ? WHERE id = ?',
-            (name, description, contact_info, latitude, longitude, need_type, emergency, need_id)
-        )
-        conn.commit()
-        conn.close()
+        need.name = name
+        need.description = description
+        need.contact_info = contact_info
+        need.latitude = latitude
+        need.longitude = longitude
+        need.need_type = need_type
+        need.emergency = emergency
+        db.session.commit()
         flash('Need updated successfully!', 'success')
         return redirect(url_for('index'))
 
-    conn.close()
     return render_template('edit_request.html', need=need)
+
 
 @app.route('/admin')
 @login_required
 def admin():
     user = current_user()
-    if not user or user['role'] != 'admin':
+    if not user or user.role != 'admin':
         flash('Admin access required.', 'error')
         return redirect(url_for('index'))
-    conn = get_db_connection()
-    needs = conn.execute('SELECT needs.*, users.username as creator_username FROM needs LEFT JOIN users ON needs.created_by = users.id ORDER BY needs.created_at DESC').fetchall()
-    users = conn.execute('SELECT id, username, role, created_at FROM users ORDER BY username ASC').fetchall()
-    conn.close()
-    return render_template('admin.html', needs=needs, users=users)
+
+    needs = Need.query.order_by(Need.created_at.desc()).all()
+    users = User.query.order_by(User.username.asc()).all()
+    fun_events = FunEvent.query.order_by(FunEvent.created_at.desc()).all()
+    return render_template('admin.html', needs=needs, users=users, fun_events=fun_events)
+
 
 @app.route('/admin/delete_need/<int:need_id>', methods=['POST'])
 @login_required
 def admin_delete_need(need_id):
     user = current_user()
-    if not user or user['role'] != 'admin':
+    if not user or user.role != 'admin':
         flash('Admin access required.', 'error')
         return redirect(url_for('index'))
-    conn = get_db_connection()
-    conn.execute('DELETE FROM needs WHERE id = ?', (need_id,))
-    conn.commit()
-    conn.close()
+
+    need = Need.query.get(need_id)
+    if need:
+        db.session.delete(need)
+        db.session.commit()
     flash('Need deleted successfully.', 'success')
     return redirect(url_for('admin'))
+
+
+@app.route('/admin/delete_fun/<int:event_id>', methods=['POST'])
+@login_required
+def admin_delete_fun(event_id):
+    user = current_user()
+    if not user or user.role != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('index'))
+
+    event = FunEvent.query.get(event_id)
+    if event:
+        db.session.delete(event)
+        db.session.commit()
+    flash('Fun event deleted successfully.', 'success')
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/edit_fun/<int:event_id>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_fun(event_id):
+    user = current_user()
+    if not user or user.role != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('index'))
+
+    event = FunEvent.query.get(event_id)
+    if not event:
+        flash('Event not found.', 'error')
+        return redirect(url_for('admin'))
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        latitude = request.form.get('latitude', '').strip()
+        longitude = request.form.get('longitude', '').strip()
+        event_type = request.form.get('event_type', 'community').strip()
+        event_date = request.form.get('event_date', '').strip()
+
+        if not title or not description or not latitude or not longitude:
+            flash('Please fill all required fields.', 'error')
+            return redirect(url_for('admin_edit_fun', event_id=event_id))
+
+        try:
+            event.latitude = float(latitude)
+            event.longitude = float(longitude)
+        except ValueError:
+            flash('Latitude and longitude must be numeric.', 'error')
+            return redirect(url_for('admin_edit_fun', event_id=event_id))
+
+        event.title = title
+        event.description = description
+        event.event_type = event_type
+        event.event_date = event_date
+        db.session.commit()
+        flash('Fun event updated successfully.', 'success')
+        return redirect(url_for('admin'))
+
+    return render_template('edit_fun.html', event=event)
+
 
 @app.route('/admin/users')
 @login_required
 def admin_users():
     user = current_user()
-    if not user or user['role'] != 'admin':
+    if not user or user.role != 'admin':
         flash('Admin access required.', 'error')
         return redirect(url_for('index'))
+
     query = request.args.get('q', '').strip()
-    conn = get_db_connection()
     if query:
-        users = conn.execute('SELECT id, username, role, created_at FROM users WHERE username LIKE ? ORDER BY username ASC', ('%' + query + '%',)).fetchall()
+        users = User.query.filter(User.username.ilike(f'%{query}%')).order_by(User.username).all()
     else:
-        users = conn.execute('SELECT id, username, role, created_at FROM users ORDER BY username ASC').fetchall()
-    conn.close()
+        users = User.query.order_by(User.username).all()
     return render_template('admin_users.html', users=users, query=query)
+
 
 @app.route('/admin/user/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 def admin_edit_user(user_id):
     user = current_user()
-    if not user or user['role'] != 'admin':
+    if not user or user.role != 'admin':
         flash('Admin access required.', 'error')
         return redirect(url_for('index'))
-    conn = get_db_connection()
-    target_user = conn.execute('SELECT id, username, role FROM users WHERE id = ?', (user_id,)).fetchone()
+
+    target_user = User.query.get(user_id)
     if not target_user:
-        conn.close()
         flash('User not found.', 'error')
         return redirect(url_for('admin_users'))
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         role = request.form.get('role', 'user').strip()
+
         if not username:
             flash('Username is required.', 'error')
             return redirect(url_for('admin_edit_user', user_id=user_id))
-        # prevent duplicate usernames
-        existing = conn.execute('SELECT id FROM users WHERE username = ? AND id != ?', (username, user_id)).fetchone()
+
+        existing = User.query.filter(User.username==username, User.id!=user_id).first()
         if existing:
-            conn.close()
             flash('Username is already in use.', 'error')
             return redirect(url_for('admin_edit_user', user_id=user_id))
-        conn.execute('UPDATE users SET username = ?, role = ? WHERE id = ?', (username, role, user_id))
-        conn.commit()
-        conn.close()
+
+        target_user.username = username
+        target_user.role = role
+
+        password = request.form.get('password', '').strip()
+        if password:
+            target_user.set_password(password)
+
+        db.session.commit()
         flash('User updated successfully.', 'success')
         return redirect(url_for('admin_users'))
 
-    conn.close()
-    return render_template('admin_edit_user.html', target_user=target_user)
+    return render_template('admin_edit_user.html', user=target_user)
+
 
 @app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
 @login_required
 def admin_delete_user(user_id):
     user = current_user()
-    if not user or user['role'] != 'admin':
+    if not user or user.role != 'admin':
         flash('Admin access required.', 'error')
         return redirect(url_for('index'))
-    if user_id == user['id']:
+
+    if user_id == user.id:
         flash('You cannot delete your own account while logged in.', 'error')
         return redirect(url_for('admin_users'))
-    conn = get_db_connection()
-    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
-    conn.execute('UPDATE needs SET created_by = NULL WHERE created_by = ?', (user_id,))
-    conn.commit()
-    conn.close()
+
+    target_user = User.query.get(user_id)
+    if target_user:
+        # orphan needs are kept as unassigned
+        Need.query.filter_by(created_by=user_id).update({'created_by': None})
+        # orphan fun events as well
+        FunEvent.query.filter_by(created_by=user_id).update({'created_by': None})
+        db.session.delete(target_user)
+        db.session.commit()
     flash('User deleted successfully.', 'success')
     return redirect(url_for('admin_users'))
+
 
 @app.route('/unvolunteer/<int:need_id>', methods=['POST'])
 @login_required
 def unvolunteer(need_id):
     user = current_user()
-    conn = get_db_connection()
-    need = conn.execute('SELECT volunteer_user_id, status FROM needs WHERE id = ?', (need_id,)).fetchone()
+    need = Need.query.get(need_id)
     if not need:
-        conn.close()
         return jsonify({'success': False, 'message': 'Need not found.'}), 404
-    if need['volunteer_user_id'] != user['id']:
-        conn.close()
+
+    if need.volunteer_user_id != user.id:
         return jsonify({'success': False, 'message': 'Not your volunteer claim.'}), 403
-    conn.execute('UPDATE needs SET status = ?, volunteer = NULL, volunteer_user_id = NULL WHERE id = ?', ('open', need_id))
-    conn.commit()
-    conn.close()
+
+    need.status = 'open'
+    need.volunteer = None
+    need.volunteer_user_id = None
+    db.session.commit()
     return jsonify({'success': True, 'message': 'Unvolunteered successfully.'}), 200
+
+
 @app.route('/my_requests')
 @login_required
 def my_requests():
     user = current_user()
-    conn = get_db_connection()
-    needs = conn.execute('SELECT * FROM needs WHERE created_by = ? ORDER BY created_at DESC', (user['id'],)).fetchall()
-    conn.close()
+    needs = Need.query.filter_by(created_by=user.id).order_by(Need.created_at.desc()).all()
     return render_template('my_requests.html', needs=needs)
+
 
 @app.route('/fun')
 @login_required
 def fun_map():
     return render_template('fun_map.html')
 
+
 @app.route('/api/fun')
 @login_required
 def api_fun():
-    conn = get_db_connection()
-    rows = conn.execute('SELECT fun_events.*, users.username as creator_username FROM fun_events LEFT JOIN users ON fun_events.created_by = users.id ORDER BY created_at DESC').fetchall()
-    conn.close()
-    events = [dict(row) for row in rows]
-    return jsonify({'events': events})
+    events = FunEvent.query.order_by(FunEvent.created_at.desc()).all()
+    data = []
+    for e in events:
+        data.append({
+            'id': e.id,
+            'title': e.title,
+            'description': e.description,
+            'latitude': e.latitude,
+            'longitude': e.longitude,
+            'event_type': e.event_type,
+            'event_date': e.event_date,
+            'created_by': e.created_by,
+            'creator_username': e.creator.username if e.creator else 'Unknown',
+            'created_at': e.created_at.isoformat(),
+        })
+    return jsonify({'events': data})
+
 
 @app.route('/add_fun', methods=['GET', 'POST'])
 @login_required
@@ -507,54 +616,58 @@ def add_fun():
             return redirect(url_for('add_fun'))
 
         user = current_user()
-        conn = get_db_connection()
-        conn.execute('INSERT INTO fun_events (title, description, latitude, longitude, event_type, event_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                     (title, description, latitude, longitude, event_type, event_date, user['id']))
-        conn.commit()
-        conn.close()
+        event = FunEvent(
+            title=title,
+            description=description,
+            latitude=latitude,
+            longitude=longitude,
+            event_type=event_type,
+            event_date=event_date,
+            created_by=user.id if user else None,
+        )
+        db.session.add(event)
+        db.session.commit()
         flash('Fun event posted successfully!', 'success')
         return redirect(url_for('fun_map'))
 
     return render_template('add_fun.html')
 
+
 @app.route('/profile/<string:username>')
 @login_required
 def profile(username):
-    conn = get_db_connection()
-    user = conn.execute('SELECT id, username, role, created_at FROM users WHERE username = ?', (username,)).fetchone()
+    user = User.query.filter_by(username=username).first()
     if not user:
-        conn.close()
         flash('User not found.', 'error')
         return redirect(url_for('index'))
 
-    posted_needs = conn.execute('SELECT * FROM needs WHERE created_by = ? ORDER BY created_at DESC', (user['id'],)).fetchall()
-    volunteered_needs = conn.execute('SELECT * FROM needs WHERE volunteer LIKE ? ORDER BY created_at DESC', (f'%{user["username"]}%',)).fetchall()
-    conn.close()
+    posted_needs = Need.query.filter_by(created_by=user.id).order_by(Need.created_at.desc()).all()
+    volunteered_needs = Need.query.filter(Need.volunteer.ilike(f'%{user.username}%')).order_by(Need.created_at.desc()).all()
     return render_template('profile.html', user=user, posted_needs=posted_needs, volunteered_needs=volunteered_needs)
+
+
 @app.route('/resolve/<int:need_id>', methods=['POST'])
 @login_required
 def resolve_own_need(need_id):
     user = current_user()
-    conn = get_db_connection()
-    need = conn.execute('SELECT created_by, status FROM needs WHERE id = ?', (need_id,)).fetchone()
+    need = Need.query.get(need_id)
     if not need:
-        conn.close()
         flash('Need not found.', 'error')
         return redirect(url_for('my_requests'))
 
-    if need['created_by'] != user['id'] and user['role'] != 'admin':
-        conn.close()
+    if need.created_by != user.id and user.role != 'admin':
         flash('Permission denied.', 'error')
         return redirect(url_for('my_requests'))
 
-    if need['status'] == 'closed':
-        conn.close()
+    if need.status == 'closed':
         flash('Request is already marked as resolved.', 'info')
         return redirect(url_for('my_requests'))
 
-    conn.execute('UPDATE needs SET status = ?, volunteer = NULL, volunteer_user_id = NULL WHERE id = ?', ('closed', need_id))
-    conn.commit()
-    conn.close()
+    need.status = 'closed'
+    need.volunteer = None
+    need.volunteer_user_id = None
+    db.session.commit()
+
     flash('Need marked as resolved.', 'success')
     return redirect(url_for('my_requests'))
 
@@ -563,26 +676,24 @@ def resolve_own_need(need_id):
 @login_required
 def reopen_need(need_id):
     user = current_user()
-    conn = get_db_connection()
-    need = conn.execute('SELECT created_by, status FROM needs WHERE id = ?', (need_id,)).fetchone()
+    need = Need.query.get(need_id)
     if not need:
-        conn.close()
         flash('Need not found.', 'error')
         return redirect(url_for('my_requests'))
 
-    if need['created_by'] != user['id'] and user['role'] != 'admin':
-        conn.close()
+    if need.created_by != user.id and user.role != 'admin':
         flash('Permission denied.', 'error')
         return redirect(url_for('my_requests'))
 
-    if need['status'] != 'closed':
-        conn.close()
+    if need.status != 'closed':
         flash('Only closed requests can be reopened.', 'info')
         return redirect(url_for('my_requests'))
 
-    conn.execute('UPDATE needs SET status = ?, volunteer = NULL, volunteer_user_id = NULL WHERE id = ?', ('open', need_id))
-    conn.commit()
-    conn.close()
+    need.status = 'open'
+    need.volunteer = None
+    need.volunteer_user_id = None
+    db.session.commit()
+
     flash('Need has been re-opened for volunteers.', 'success')
     return redirect(url_for('my_requests'))
 
@@ -591,21 +702,18 @@ def reopen_need(need_id):
 @login_required
 def delete_need(need_id):
     user = current_user()
-    conn = get_db_connection()
-    need = conn.execute('SELECT created_by FROM needs WHERE id = ?', (need_id,)).fetchone()
+    need = Need.query.get(need_id)
     if not need:
-        conn.close()
         flash('Need not found.', 'error')
         return redirect(url_for('my_requests'))
 
-    if need['created_by'] != user['id'] and user['role'] != 'admin':
-        conn.close()
+    if need.created_by != user.id and user.role != 'admin':
         flash('Permission denied.', 'error')
         return redirect(url_for('my_requests'))
 
-    conn.execute('DELETE FROM needs WHERE id = ?', (need_id,))
-    conn.commit()
-    conn.close()
+    db.session.delete(need)
+    db.session.commit()
+
     flash('Need deleted successfully.', 'success')
     return redirect(url_for('my_requests'))
 
@@ -614,16 +722,38 @@ def delete_need(need_id):
 @login_required
 def resolve_need(need_id):
     user = current_user()
-    if not user or user['role'] != 'admin':
+    if not user or user.role != 'admin':
         flash('Admin access required.', 'error')
         return redirect(url_for('index'))
 
-    conn = get_db_connection()
-    conn.execute('UPDATE needs SET status = ? WHERE id = ?', ('closed', need_id))
-    conn.commit()
-    conn.close()
+    need = Need.query.get(need_id)
+    if need:
+        need.status = 'closed'
+        db.session.commit()
     flash('Need marked as resolved.', 'success')
     return redirect(url_for('admin'))
 
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    app.logger.warning('CSRF failed: %s', e)
+    flash('Security token invalid/expired. Please refresh and retry.', 'error')
+    return redirect(request.path), 400
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    app.logger.exception('Internal server error: %s', error)
+    flash('Internal server error occurred. Please contact support.', 'error')
+    return 'Internal Server Error', 500
+
+
+# Register custom Flask CLI commands from commands.py
+try:
+    import commands
+    commands.init_app(app)
+except ImportError:
+    pass
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)

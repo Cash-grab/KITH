@@ -22,7 +22,8 @@
           <td>{{ u.role }}</td>
           <td>{{ u.created_at }}</td>
           <td>
-            <a href="{{ url_for('admin_edit_user', user_id=u.id) }}">Edit</a>
+            <a href="{{ url_for('profile', username=u.username) }}">Profile</a>
+            <a href="{{ url_for('admin_edit_user', user_id=u.id) }}" style="margin-left: 6px;">Edit</a>
             <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}" style="display:inline; margin-left: 6px;" onsubmit="return confirm('Delete this user and disassociate their requests?');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn-inline">Delete</button>

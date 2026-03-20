@@ -13,10 +13,14 @@ instance/
 __pycache__/
 *.py[cod]
 *$py.class
-
+config.py
 # Environment variables (for security)
 .env
 
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+#gunicon logs and control socket files.
+*.ctl
+*.log

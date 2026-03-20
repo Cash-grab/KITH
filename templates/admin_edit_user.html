@@ -3,6 +3,7 @@
   <h2>Edit User</h2>
   <div style="margin-bottom: 1rem;">
     <a href="{{ url_for('admin_users') }}" class="btn-inline">Back to users</a>
+    <a href="{{ url_for('profile', username=user.username) }}" class="btn-inline" style="margin-left: 0.5rem;">View full profile</a>
   </div>
 
   {% if error %}
@@ -10,6 +11,7 @@
   {% endif %}
 
   <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="form-group">
       <label>Username</label>
       <input type="text" name="username" value="{{ user.username }}" required>

@@ -1,29 +1,75 @@
 {% extends 'base.html' %}
 {% block content %}
-  <section class="info-box">
-    <p>See all open requests on the map. Click a pin to volunteer and help your neighbors.</p>
+</div> <!-- Close initial container from base.html to allow full-width hero -->
+
+<section class="hero">
+  <div class="container">
+    <h2>Neighbor's helping Neighborhood!</h2>
+    <p>KITH is a community platform to request and provide local support. From groceries to medical aid, let's look out for one another.</p>
+    <div class="hero-ctas">
+      <a href="{{ url_for('add_need') }}" class="btn btn-primary">Request Help</a>
+      <a href="#map-section" class="btn btn-success">Volunteer Now</a>
+    </div>
+  </div>
+</section>
+
+<div class="container"> <!-- Re-open container for main content -->
+  
+  <section id="map-section">
+    <h3 class="section-title">Active Requests Map</h3>
+    <div class="info-box">
+      <p>See all open requests on the map. Click a pin to volunteer and help your neighbors.</p>
+    </div>
+
+    <div id="map" style="height: 55vh; min-height: 400px;"></div>
+
+    <div class="controls">
+      <label>Filter by type 
+        <select id="filterNeedType">
+          <option value="">All Types</option>
+          <option value="medical">Medical</option>
+          <option value="food">Food</option>
+          <option value="shelter">Shelter</option>
+          <option value="childcare">Childcare</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Filter by status 
+        <select id="filterStatus">
+          <option value="open,requested" selected>Open/Requested</option>
+          <option value="open">Open Only</option>
+          <option value="requested">Requested Only</option>
+          <option value="closed">Closed Only</option>
+        </select>
+      </label>
+      <label>Sort by 
+        <select id="sortBy">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="type">By Category</option>
+        </select>
+      </label>
+      <label style="flex-direction: row; gap: 0.5rem; align-items: center;">
+        <input type="checkbox" id="showEmergencyTop" checked>
+        Show Emergency First
+      </label>
+    </div>
+
+    <div class="legend">
+      <strong>Legend:</strong>
+      <span class="legend-item" style="background:#64748b">Medical</span>
+      <span class="legend-item" style="background:#10b981">Food</span>
+      <span class="legend-item" style="background:#3b82f6">Shelter</span>
+      <span class="legend-item" style="background:#ec4899">Childcare</span>
+      <span class="legend-item" style="background:#94a3b8">Other</span>
+      <span class="legend-item" style="background:#f43f5e">Emergency</span>
+    </div>
   </section>
 
-  <div id="map" style="height: 55vh; min-height: 380px;"></div>
-
-  <div class="controls">
-    <label>Filter by type <select id="filterNeedType"><option value="">All</option><option value="medical">Medical</option><option value="food">Food</option><option value="shelter">Shelter</option><option value="childcare">Childcare</option><option value="other">Other</option></select></label>
-    <label>Filter by status <select id="filterStatus"><option value="open,requested" selected>Open/Requested</option><option value="open">Open</option><option value="requested">Requested</option><option value="closed">Closed</option></select></label>
-    <label>Sort by <select id="sortBy"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="type">Type</option></select></label>
-    <label>Show emergency on top <input type="checkbox" id="showEmergencyTop" checked></label>
-  </div>
-
-  <div class="legend">
-    <strong>Legend:</strong>
-    <span class="legend-item" style="background:#6b7280">Medical</span>
-    <span class="legend-item" style="background:#22c55e">Food</span>
-    <span class="legend-item" style="background:#60a5fa">Shelter</span>
-    <span class="legend-item" style="background:#f472b6">Childcare</span>
-    <span class="legend-item" style="background:#a3a3a3">Other</span>
-    <span class="legend-item" style="background:#dc2626">Emergency</span>
-  </div>
-
-  <div id="list-cards" class="needs-cards"></div>
+  <section id="list-section" style="margin-top: 4rem;">
+    <h3 class="section-title">Latest Community Needs</h3>
+    <div id="list-cards" class="needs-cards"></div>
+  </section>
 
   <script>
     const map = L.map('map').setView([20.0, 0.0], 2);
@@ -98,34 +144,40 @@
       clusterLayer.clearLayers();
       needs.forEach((need) => {
         const colorMap = {
-        emergency: '#dc2626',
-        medical: '#ffffff',
-        food: '#22c55e',
-        shelter: '#60a5fa',
-        childcare: '#f472b6',
-        other: '#a3a3a3'
+        emergency: '#f43f5e',
+        medical: '#64748b',
+        food: '#10b981',
+        shelter: '#3b82f6',
+        childcare: '#ec4899',
+        other: '#94a3b8'
       };
       const color = need.emergency ? colorMap.emergency : (colorMap[need.need_type] || colorMap.other);
       const marker = L.marker([need.latitude, need.longitude], {
         icon: createColorIcon(color)
       });
-      const volunteerLabel = need.volunteer ? `Volunteers: ${need.volunteer}<br />` : 'Volunteers: None yet<br />';
-      const contactInfo = need.contact_info ? `Contact: ${need.contact_info}<br />` : '';
+      const volunteerLabel = need.volunteer ? `<strong>Volunteers:</strong> ${need.volunteer}<br />` : '<strong>Volunteers:</strong> None yet<br />';
+      
       let volunteerButton;
       if (!userLoggedIn) {
-        volunteerButton = `<a href="/login?next=/" class="btn-inline" style="background:#9ca3af;">Login to volunteer</a>`;
+        volunteerButton = `<a href="/login?next=/" class="btn-inline" style="background:#94a3b8;">Login to volunteer</a>`;
+      } else if (need.status === 'closed') {
+         volunteerButton = `<span class="user-pill" style="background:#94a3b8;">Closed</span>`;
       } else {
         volunteerButton = `<button onclick="volunteer(${need.id});" class="btn-inline">Volunteer</button>`;
       }
 
         marker.bindPopup(`
-          <strong>${need.name}</strong><br />
-          ${need.description}<br />
-          <em>Type:</em> ${need.need_type}<br />
-          <em>Status:</em> ${need.status}<br />
-          ${volunteerLabel}<br />
-          ${volunteerButton}
-        `);
+          <div style="font-family: inherit; padding: 0.5rem;">
+            <strong style="font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">${need.name}</strong>
+            <p style="margin: 0.5rem 0;">${need.description}</p>
+            <div style="font-size: 0.9rem; margin-bottom: 0.75rem;">
+              <em>Type:</em> ${need.need_type}<br />
+              <em>Status:</em> ${need.status}<br />
+              ${volunteerLabel}
+            </div>
+            ${volunteerButton}
+          </div>
+        `, { maxWidth: 250 });
         clusterLayer.addLayer(marker);
       });
 
@@ -140,26 +192,32 @@
       container.innerHTML = needs.length ? needs.map(need => {
         let volunteerAction;
         if (!userLoggedIn) {
-          volunteerAction = `<a href="/login?next=/" class="btn-inline" style="background:#9ca3af;">Login to volunteer</a>`;
+          volunteerAction = `<a href="/login?next=/" class="btn btn-primary" style="background:#94a3b8; font-size: 0.8rem; padding: 0.4rem 0.8rem;">Login to volunteer</a>`;
         } else if (need.status === 'closed') {
-          volunteerAction = `<button class="btn-inline" disabled style="background:#9ca3af;">Closed</button>`;
+          volunteerAction = `<button class="btn" disabled style="background:#cbd5e1; color: #64748b; font-size: 0.8rem; padding: 0.4rem 0.8rem;">Closed</button>`;
         } else {
-          volunteerAction = `<button onclick="volunteer(${need.id});" class="btn-inline">Volunteer</button>`;
+          volunteerAction = `<button onclick="volunteer(${need.id});" class="btn btn-success" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">Volunteer</button>`;
         }
 
         const canEdit = currentUserId && (currentUserId === need.created_by || isAdmin);
-        const editLink = canEdit ? `<a href="/edit/${need.id}" class="btn-inline" style="margin-left:0.5rem;">Edit</a>` : '';
+        const editLink = canEdit ? `<a href="/edit/${need.id}" class="btn btn-outline" style="margin-left:0.5rem; font-size: 0.8rem; padding: 0.4rem 0.8rem; border-width: 1px;">Edit</a>` : '';
         return `
         <article class="need-card${need.emergency ? ' urgent' : ''}">
-          <div class="need-title">${need.name}${need.emergency ? ' (EMERGENCY)' : ''}</div>
-          <div>${need.description}</div>
+          <div class="need-title">${need.name}</div>
+          <div class="need-description">${need.description}</div>
           <div class="need-meta">
             <span class="type-pill type-${need.need_type}">${need.need_type}</span>
-            Status: ${need.status} • Volunteers: ${need.volunteer || 'None'} • Created by: ${need.creator_username || '-'}
+            <span><strong>Status:</strong> ${need.status}</span>
+            <span><strong>Volunteers:</strong> ${need.volunteer || 'None'}</span>
           </div>
-          <div class="need-meta">Contact: ${need.contact_info || 'N/A'}</div>
-          ${volunteerAction}
-          ${editLink}
+          <div class="need-meta" style="border:none; padding:0; margin-top: 0.5rem;">
+             <span><strong>By:</strong> ${need.creator_username || '-'}</span>
+             <span><strong>Contact:</strong> ${need.contact_info || 'N/A'}</span>
+          </div>
+          <div style="margin-top: 1.25rem;">
+            ${volunteerAction}
+            ${editLink}
+          </div>
         </article>
       `;
       }).join('') : '<p>No needs match the filters.</p>';

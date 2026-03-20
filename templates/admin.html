@@ -1,49 +1,107 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h2>Admin dashboard</h2>
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="flash-messages">
-        {% for category, message in messages %}
-          <div class="flash flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+  <h2 class="section-title">Admin Dashboard</h2>
 
-  <div style="margin-bottom: 1rem;"><a href="{{ url_for('admin_users') }}" class="btn-inline">Manage Users</a></div>
+  <div class="info-box" style="display: flex; gap: 1rem; align-items: center; justify-content: space-between;">
+    <span>Quick Management:</span>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="{{ url_for('admin_users') }}" class="btn btn-outline" style="font-size: 0.9rem; padding: 0.5rem 1rem;">Manage Users</a>
+      <a href="{{ url_for('add_need') }}" class="btn btn-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">Add Need</a>
+      <a href="{{ url_for('add_fun') }}" class="btn btn-success" style="font-size: 0.9rem; padding: 0.5rem 1rem;">Add Fun Event</a>
+    </div>
+  </div>
 
-  <h3>Needs (open/requested/closed)</h3>
-  <table class="needs-table">
-    <thead>
-      <tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>Volunteers</th><th>Creator</th><th>Action</th></tr>
-    </thead>
-    <tbody>
-      {% for need in needs %}
-        <tr>
-          <td>{{ need.id }}</td>
-          <td>{{ need.name }}</td>
-          <td>{{ need.need_type }}</td>
-          <td>{{ need.status }}</td>
-          <td>{{ need.volunteer or '-' }}</td>
-          <td>{{ need.created_by or '-' }}</td>
-          <td>
-            <a href="{{ url_for('edit_need', need_id=need.id) }}">Edit</a>
-            <form method="post" action="{{ url_for('admin_delete_need', need_id=need.id) }}" style="display:inline; margin-left: 6px;" onsubmit="return confirm('Delete this need permanently?');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit">Delete</button>
-            </form>
-            {% if need.status != 'closed' %}
-              <form method="post" action="{{ url_for('resolve_need', need_id=need.id) }}" style="display:inline; margin-left: 6px;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <button type="submit">Resolve</button>
-              </form>
-            {% else %}
-              Closed
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <section style="margin-top: 3rem;">
+    <h3 class="section-title" style="font-size: 1.5rem;">Active Needs</h3>
+    <div class="info-box" style="padding: 0; overflow-x: auto;">
+      <table class="needs-table" style="width: 100%; border: none;">
+        <thead>
+          <tr style="background: var(--bg-main);">
+            <th style="padding: 1rem;">ID</th>
+            <th style="padding: 1rem;">Name</th>
+            <th style="padding: 1rem;">Type</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Creator</th>
+            <th style="padding: 1rem; text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for need in needs %}
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding: 1rem;">{{ need.id }}</td>
+              <td style="padding: 1rem;"><strong>{{ need.name }}</strong></td>
+              <td style="padding: 1rem;"><span class="type-pill type-{{ need.need_type }}">{{ need.need_type }}</span></td>
+              <td style="padding: 1rem;">{{ need.status }}</td>
+              <td style="padding: 1rem;">
+                {% if need.creator %}
+                  <span class="user-pill">{{ need.creator.username }}</span>
+                {% else %}
+                  <span style="color: var(--text-muted); font-style: italic;">Deleted User</span>
+                {% endif %}
+              </td>
+              <td style="padding: 1rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <a href="{{ url_for('edit_need', need_id=need.id) }}" class="btn-inline" style="background: var(--primary);">Edit</a>
+                {% if need.status != 'closed' %}
+                  <form method="post" action="{{ url_for('resolve_need', need_id=need.id) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="btn-inline" style="background: var(--success);">Resolve</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin_delete_need', need_id=need.id) }}" style="display:inline;" onsubmit="return confirm('Delete this need permanently?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn-inline" style="background: var(--danger);">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="margin-top: 4rem; margin-bottom: 4rem;">
+    <h3 class="section-title" style="font-size: 1.5rem;">Fun & Community Events</h3>
+    <div class="info-box" style="padding: 0; overflow-x: auto;">
+      <table class="needs-table" style="width: 100%; border: none;">
+        <thead>
+          <tr style="background: var(--bg-main);">
+            <th style="padding: 1rem;">ID</th>
+            <th style="padding: 1rem;">Title</th>
+            <th style="padding: 1rem;">Type</th>
+            <th style="padding: 1rem;">Date</th>
+            <th style="padding: 1rem;">Creator</th>
+            <th style="padding: 1rem; text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in fun_events %}
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding: 1rem;">{{ event.id }}</td>
+              <td style="padding: 1rem;"><strong>{{ event.title }}</strong></td>
+              <td style="padding: 1rem;">{{ event.event_type }}</td>
+              <td style="padding: 1rem;">{{ event.event_date or 'N/A' }}</td>
+              <td style="padding: 1rem;">
+                {% if event.creator %}
+                  <span class="user-pill" style="background: #eab308;">{{ event.creator.username }}</span>
+                {% else %}
+                  <span style="color: var(--text-muted); font-style: italic;">Deleted User</span>
+                {% endif %}
+              </td>
+              <td style="padding: 1rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <a href="{{ url_for('admin_edit_fun', event_id=event.id) }}" class="btn-inline" style="background: var(--primary);">Edit</a>
+                <form method="post" action="{{ url_for('admin_delete_fun', event_id=event.id) }}" style="display:inline;" onsubmit="return confirm('Delete this event permanently?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn-inline" style="background: var(--danger);">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No fun events found in database.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 {% endblock %}

@@ -1,14 +1,15 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h2>Map of Fun</h2>
+  <h2 class="section-title">Map of Fun & Community</h2>
   <section class="info-box">Only logged in users can see and create fun community events.</section>
 
-  <div id="fun-map" style="height: 60vh; min-height: 400px;"></div>
+  <div id="fun-map" style="height: 60vh; min-height: 400px; margin-bottom: 2rem; border-radius: var(--radius); border: 1px solid var(--border-color); box-shadow: var(--shadow);"></div>
 
   <div class="controls">
-    <a href="{{ url_for('add_fun') }}" class="btn-inline">Post an Event</a>
+    <a href="{{ url_for('add_fun') }}" class="btn btn-primary">Post a Community Event</a>
   </div>
 
+  <h3 class="section-title" style="margin-top: 3rem;">Recent Fun Events</h3>
   <div id="fun-cards" class="needs-cards"></div>
 
   <script>

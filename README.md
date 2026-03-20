@@ -8,10 +8,17 @@ KITH is a minimal, community-first platform built for local mutual aid. It’s a
 
 ## Why KITH exists
 
-- built for FOSS United hackathon energy and ongoing grassroots impact
+Kith is like a tool that can be used between any amount of community on the same network or the internet. It can be hosted and can work for you and your roomates or at an massive global scale connecting a community in their support efforts.
+
+It works to let a community mark an event on an map and let other people Volunteer towards it. 
+
+The simlified 
 - maps active local needs and turns them into a living neighborhood feed
 - removes friction from help: communities can post, claim, and close requests quickly
+
+It was built for FOSS United hackathon. Following their open source principles which means.
 - 100% open source stack with no hidden algorithms or closed vendor lock-in
+
 
 ---
 
@@ -19,7 +26,7 @@ KITH is a minimal, community-first platform built for local mutual aid. It’s a
 
 1. User creates need on `/add` (location, type, note)
 2. Volunteer clicks `/volunteer/<id>` to take ownership
-3. Admin closes request after completion
+3. Users closes request after completion
 4. Requests reflect open/claimed/closed status on `/` map view
 
 ---
@@ -38,6 +45,18 @@ KITH is a minimal, community-first platform built for local mutual aid. It’s a
 ## Strengths & potential
 
 - lean, practical local aid tool with low adoption friction
+
+## Admin CLI (secure admin creation)
+
+Use the custom CLI command to create an admin account from inside the container (never hardcode credentials):
+
+```bash
+docker compose up -d --build
+# then:
+docker compose exec web flask create-admin cash_admin your_secure_password
+```
+
+
 - runs on SQLite + Flask, no complex infrastructure required
 - inspectable behavior makes community trust easier
 - extensible for notifications, identity, and partner integrations

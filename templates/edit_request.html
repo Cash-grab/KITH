@@ -1,55 +1,55 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h2>Edit Need</h2>
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="flash-messages">
-        {% for category, message in messages %}
-          <div class="flash flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+  <h2 class="section-title">Edit Help Request</h2>
 
-  <form method="post" class="form-card">
+  <form method="post" class="form-card" style="max-width: 800px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>Name of requester <span class="required">*</span><input name="name" value="{{ need.name }}" required /></label>
     <label>Description <span class="required">*</span><textarea name="description" rows="3" required>{{ need.description }}</textarea></label>
-    <label>Type <select name="need_type">
-      <option value="medical" {% if need.need_type == 'medical' %}selected{% endif %}>Medical</option>
-      <option value="food" {% if need.need_type == 'food' %}selected{% endif %}>Food</option>
-      <option value="shelter" {% if need.need_type == 'shelter' %}selected{% endif %}>Shelter</option>
-      <option value="childcare" {% if need.need_type == 'childcare' %}selected{% endif %}>Childcare</option>
-      <option value="other" {% if need.need_type == 'other' %}selected{% endif %}>Other</option>
-    </select></label>
-    <label>Contact information <span class="required">*</span><input name="contact_info" value="{{ need.contact_info or '' }}" required placeholder="phone/email" /></label>
-    <label><input type="checkbox" name="emergency" {% if need.emergency %}checked{% endif %}/> Emergency priority (red)</label>
+    
     <div class="row-inline">
-      <label>Latitude <span class="required">*</span><input id="lat" name="latitude" value="{{ need.latitude }}" required type="text" /></label>
-      <label>Longitude <span class="required">*</span><input id="lng" name="longitude" value="{{ need.longitude }}" required type="text" /></label>
+      <label>Type 
+        <select name="need_type">
+          <option value="medical" {% if need.need_type == 'medical' %}selected{% endif %}>Medical</option>
+          <option value="food" {% if need.need_type == 'food' %}selected{% endif %}>Food</option>
+          <option value="shelter" {% if need.need_type == 'shelter' %}selected{% endif %}>Shelter</option>
+          <option value="childcare" {% if need.need_type == 'childcare' %}selected{% endif %}>Childcare</option>
+          <option value="other" {% if need.need_type == 'other' %}selected{% endif %}>Other</option>
+        </select>
+      </label>
+      <label>Contact Info <span class="required">*</span><input name="contact_info" value="{{ need.contact_info or '' }}" required /></label>
     </div>
-    <div class="small-map-wrapper">
-      <p>Drag marker to adjust location:</p>
-      <div id="location-map" class="small-map"></div>
+
+    <label style="flex-direction: row; gap: 0.5rem; align-items: center; margin: 1rem 0;">
+      <input type="checkbox" name="emergency" {% if need.emergency %}checked{% endif %}/> Emergency priority (red)
+    </label>
+
+    <div class="section-divider" style="border-top: 1px solid var(--border-color); margin: 1.5rem 0;"></div>
+
+    <label style="margin-bottom: 0.5rem;">Adjust Location on Map <span class="required">*</span></label>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Drag the marker to the correct location.</p>
+    
+    <div id="location-map" class="small-map" style="height: 350px; margin-bottom: 1rem;"></div>
+
+    <div class="row-inline" style="margin-bottom: 1.5rem;">
+      <label>Latitude <input id="lat" name="latitude" value="{{ need.latitude }}" required type="text" /></label>
+      <label>Longitude <input id="lng" name="longitude" value="{{ need.longitude }}" required type="text" /></label>
     </div>
-    <button type="submit">Save changes</button>
+
+    <button type="submit" class="btn btn-primary" style="width: 100%;">Save Changes</button>
+    <a href="{{ url_for('my_requests') }}" class="btn btn-outline" style="width: 100%; margin-top: 0.5rem; text-align: center;">Cancel</a>
   </form>
 
   <script>
     const initialLat = parseFloat('{{ need.latitude }}');
     const initialLng = parseFloat('{{ need.longitude }}');
+    
     const locationMap = L.map('location-map').setView([initialLat, initialLng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(locationMap);
 
     let currentMarker = L.marker([initialLat, initialLng], { draggable: true }).addTo(locationMap);
-
-    function setMarker(lat, lng) {
-      currentMarker.setLatLng([lat, lng]);
-      locationMap.setView([lat, lng], 13);
-      locationMap.invalidateSize();
-    }
 
     function updateFieldsFromMarker() {
       const latlng = currentMarker.getLatLng();
@@ -61,7 +61,8 @@
       const lat = parseFloat(document.getElementById('lat').value);
       const lng = parseFloat(document.getElementById('lng').value);
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        setMarker(lat, lng);
+        currentMarker.setLatLng([lat, lng]);
+        locationMap.setView([lat, lng]);
       }
     }
 
@@ -69,6 +70,7 @@
     document.getElementById('lat').addEventListener('change', updateMarkerFromFields);
     document.getElementById('lng').addEventListener('change', updateMarkerFromFields);
 
-    setTimeout(() => { locationMap.invalidateSize(); }, 250);
+    // ensure map is properly shown after render
+    setTimeout(() => { locationMap.invalidateSize(); }, 300);
   </script>
 {% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2 class="section-title">Edit Community Event</h2>
+
+  <form action="" method="post" class="form-card" style="max-width: 800px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Event Title <span class="required">*</span><input name="title" required value="{{ event.title }}" /></label>
+    <label>Description <span class="required">*</span><textarea name="description" rows="3" required>{{ event.description }}</textarea></label>
+    
+    <div class="row-inline">
+      <label>Event Type 
+        <select name="event_type">
+          <option value="community" {% if event.event_type == 'community' %}selected{% endif %}>Community</option>
+          <option value="meetup" {% if event.event_type == 'meetup' %}selected{% endif %}>Meetup</option>
+          <option value="volunteering" {% if event.event_type == 'volunteering' %}selected{% endif %}>Volunteering</option>
+          <option value="other" {% if event.event_type == 'other' %}selected{% endif %}>Other</option>
+        </select>
+      </label>
+      <label>Date <input type="date" name="event_date" value="{{ event.event_date or '' }}" /></label>
+    </div>
+
+    <div class="section-divider" style="border-top: 1px solid var(--border-color); margin: 1.5rem 0;"></div>
+    
+    <label style="margin-bottom: 0.5rem;">Event Location <span class="required">*</span></label>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Drag the marker to the correct location.</p>
+    
+    <div id="location-map" class="small-map" style="height: 350px; margin-bottom: 1rem;"></div>
+
+    <div class="row-inline" style="margin-bottom: 1rem;">
+      <label>Latitude <input id="lat" name="latitude" required type="text" value="{{ event.latitude }}" /></label>
+      <label>Longitude <input id="lng" name="longitude" required type="text" value="{{ event.longitude }}" /></label>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="width: 100%;">Save Changes</button>
+    <a href="{{ url_for('admin') }}" class="btn btn-outline" style="width: 100%; margin-top: 0.5rem; text-align: center;">Cancel</a>
+  </form>
+
+  <script>
+    const initialLat = parseFloat('{{ event.latitude }}');
+    const initialLng = parseFloat('{{ event.longitude }}');
+    
+    const locationMap = L.map('location-map').setView([initialLat, initialLng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(locationMap);
+
+    let currentMarker = L.marker([initialLat, initialLng], { draggable: true }).addTo(locationMap);
+
+    function updateFieldsFromMarker() {
+      const latlng = currentMarker.getLatLng();
+      document.getElementById('lat').value = latlng.lat.toFixed(6);
+      document.getElementById('lng').value = latlng.lng.toFixed(6);
+    }
+
+    function updateMarkerFromFields() {
+      const lat = parseFloat(document.getElementById('lat').value);
+      const lng = parseFloat(document.getElementById('lng').value);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        currentMarker.setLatLng([lat, lng]);
+        locationMap.setView([lat, lng]);
+      }
+    }
+
+    currentMarker.on('dragend', updateFieldsFromMarker);
+    document.getElementById('lat').addEventListener('change', updateMarkerFromFields);
+    document.getElementById('lng').addEventListener('change', updateMarkerFromFields);
+
+    setTimeout(() => { locationMap.invalidateSize(); }, 300);
+  </script>
+{% endblock %}

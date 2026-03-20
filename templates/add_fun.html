@@ -1,21 +1,96 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h2>Post a Community Fun Event</h2>
-  <form action="" method="post" class="form-card">
+  <h2 class="section-title">Post Community Fun</h2>
+
+  <form action="" method="post" class="form-card" style="max-width: 800px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-    <label>Event title <input name="title" required /></label>
-    <label>Description <textarea name="description" rows="4" required></textarea></label>
-    <label>Event type <select name="event_type">
-      <option value="community">Community</option>
-      <option value="meetup">Meetup</option>
-      <option value="volunteering">Volunteering</option>
-      <option value="other" selected>Other</option>
-    </select></label>
-    <label>Date <input type="date" name="event_date" /></label>
+    <label>Event Title <span class="required">*</span><input name="title" required placeholder="Give your event a name" /></label>
+    <label>Description <span class="required">*</span><textarea name="description" rows="3" required placeholder="Describe the event..."></textarea></label>
+    
     <div class="row-inline">
+      <label>Event Type 
+        <select name="event_type">
+          <option value="community">Community</option>
+          <option value="meetup">Meetup</option>
+          <option value="volunteering">Volunteering</option>
+          <option value="other" selected>Other</option>
+        </select>
+      </label>
+      <label>Date <input type="date" name="event_date" /></label>
+    </div>
+
+    <div class="section-divider" style="border-top: 1px solid var(--border-color); margin: 1.5rem 0;"></div>
+    
+    <label style="margin-bottom: 0.5rem;">Event Location <span class="required">*</span></label>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Drag the marker to the event location.</p>
+    
+    <div id="location-map" class="small-map" style="height: 350px; margin-bottom: 1rem;"></div>
+
+    <div class="row-inline" style="margin-bottom: 1rem;">
       <label>Latitude <input id="lat" name="latitude" required type="text" /></label>
       <label>Longitude <input id="lng" name="longitude" required type="text" /></label>
     </div>
-    <button type="submit">Post event</button>
+
+    <button type="button" class="btn btn-outline" onclick="prefillGeolocation()" style="margin-bottom: 1.5rem; width: 100%;">Use my current location</button>
+    <button type="submit" class="btn btn-primary" style="width: 100%;">Post Community Event</button>
   </form>
+
+  <script>
+    const initialLat = 20.0;
+    const initialLng = 0.0;
+    
+    const locationMap = L.map('location-map').setView([initialLat, initialLng], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(locationMap);
+
+    let currentMarker = L.marker([initialLat, initialLng], { draggable: true }).addTo(locationMap);
+
+    function setMarker(lat, lng, zoom = 13) {
+      currentMarker.setLatLng([lat, lng]);
+      locationMap.setView([lat, lng], zoom);
+      document.getElementById('lat').value = lat.toFixed(6);
+      document.getElementById('lng').value = lat.toFixed(6);
+      locationMap.invalidateSize();
+    }
+
+    function updateFieldsFromMarker() {
+      const latlng = currentMarker.getLatLng();
+      document.getElementById('lat').value = latlng.lat.toFixed(6);
+      document.getElementById('lng').value = latlng.lng.toFixed(6);
+    }
+
+    function updateMarkerFromFields() {
+      const lat = parseFloat(document.getElementById('lat').value);
+      const lng = parseFloat(document.getElementById('lng').value);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        currentMarker.setLatLng([lat, lng]);
+        locationMap.setView([lat, lng]);
+      }
+    }
+
+    currentMarker.on('dragend', updateFieldsFromMarker);
+    document.getElementById('lat').addEventListener('change', updateMarkerFromFields);
+    document.getElementById('lng').addEventListener('change', updateMarkerFromFields);
+
+    updateFieldsFromMarker();
+    setTimeout(() => { locationMap.invalidateSize(); }, 300);
+
+    function prefillGeolocation() {
+      if (!navigator.geolocation) {
+        showToast('Geolocation not supported.', 'warning');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(function(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        currentMarker.setLatLng([lat, lng]);
+        locationMap.setView([lat, lng], 15);
+        updateFieldsFromMarker();
+        showToast('Location updated.', 'success');
+      }, function() {
+        showToast('Unable to retrieve location.', 'error');
+      });
+    }
+  </script>
 {% endblock %}

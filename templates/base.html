@@ -13,35 +13,44 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   </head>
   <body>
+    
     <header class="app-header">
       <div class="container">
-        <h1><a href="{{ url_for('index') }}">Map of Needs</a></h1>
+        <h1><a href="{{ url_for('index') }}">KITH</a></h1>
         <nav>
-          <a href="{{ url_for('add_need') }}">Request Help</a>
+          <a href="{{ url_for('index') }}">Home</a>
           {% if current_user %}
+            <a href="{{ url_for('add_need') }}">Request Help</a>
             <a href="{{ url_for('my_requests') }}">My Requests</a>
-            <a href="{{ url_for('profile', username=current_user.username) }}">Profile</a>
-            <a href="{{ url_for('fun_map') }}">Map of Fun</a>
-          {% endif %}
-          {% if current_user and current_user.role == 'admin' %}
-            <a href="{{ url_for('admin') }}">Admin</a>
-          {% endif %}
-          {% if current_user %}
+            <a href="{{ url_for('fun_map') }}">Fun Map</a>
+            {% if current_user.role == 'admin' %}
+              <a href="{{ url_for('admin') }}">Admin</a>
+            {% endif %}
             <span class="user-pill">{{ current_user.username }}</span>
             <a href="{{ url_for('logout') }}">Logout</a>
           {% else %}
             <a href="{{ url_for('login') }}">Login</a>
-            <a href="{{ url_for('register') }}">Register</a>
+            <a href="{{ url_for('register') }}" class="btn-inline">Join Community</a>
           {% endif %}
         </nav>
       </div>
     </header>
 
-    <main class="container">{% block content %}{% endblock %}</main>
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+    
+  <main class="container">{% block content %}{% endblock %}</main>
 
     <div id="toast" class="toast"></div>
     <footer class="app-footer">
-      <div class="container">Open source project for FOSS United. No monetization. No tracking.</div>
+      <div class="container">Webapp by Ash, for FOSS United. No monetization. No tracking. ♥️</div>
     </footer>
     <script>
       function showToast(message, type='info') {

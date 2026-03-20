@@ -13,9 +13,8 @@
 
   <form method="post" class="form-card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>Username<input name="username" required /></label>
     <label>Password<input type="password" name="password" required /></label>
-    <button type="submit">Register</button>
+    <button type="submit" class="btn btn-primary">Register</button>
   </form>
 {% endblock %}
