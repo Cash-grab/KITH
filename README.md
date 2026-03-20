@@ -3,6 +3,7 @@
 KITH is a minimal, community-first platform built for local mutual aid. It’s a transparent, open-source “humanity flow” that connects neighbors and makes kindness visible.
 
 > **KITH** means friends, acquaintances, and neighbors—those who make a place feel like home.
+<img width="1247" height="574" alt="image" src="https://github.com/user-attachments/assets/234ab723-47a8-419e-a27b-90e6da1dbcbb" />
 
 ---
 
