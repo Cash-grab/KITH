@@ -1,0 +1,17 @@
+# KITH Configuration Overlay
+# Copy this file to '.config' to override default environment variables.
+
+# Security
+SECRET_KEY=generate-a-very-long-random-string-here
+
+# Database
+# For Postgres: postgresql://user:password@db:5432/kith_db
+# For SQLite: leave empty
+DATABASE_URL=
+DATABASE_PATH=data.db
+
+# Admin Seeding
+# Set SEED_ADMIN to true to enable initial admin creation
+SEED_ADMIN=false
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me-immediately-after-seeding
