@@ -13,7 +13,6 @@ instance/
 __pycache__/
 *.py[cod]
 *$py.class
-config.py
 # Environment variables (for security)
 .env
 

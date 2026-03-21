@@ -5,6 +5,7 @@ KITH is a minimal, community-first platform built for local mutual aid. It’s a
 > **KITH** means friends, acquaintances, and neighbors—those who make a place feel like home.
 <img width="1247" height="574" alt="image" src="https://github.com/user-attachments/assets/234ab723-47a8-419e-a27b-90e6da1dbcbb" />
 
+<img width="1247" height="574" alt="image" src="https://github.com/user-attachments/assets/234ab723-47a8-419e-a27b-90e6da1dbcbb" />
 ---
 
 ## Core Features
@@ -18,10 +19,11 @@ KITH is a minimal, community-first platform built for local mutual aid. It’s a
 ---
 
 ## Getting Started
-
+For a basic understanding of how to run KITH, Just clone the repo, statify the dependency stated in requirements.txt, create your secure .env file(Example provided) and run it with docker as a container. 
 ### 1. Prerequisites
 - Python 3.9+
 - pip (Python package manager)
+- docker (for containerization.)
 
 ### 2. Initial Setup
 Clone the repository and set up a virtual environment:
@@ -41,7 +43,7 @@ pip install -r requirements.txt
 ```
 
 ### 3. Configuration
-KITH uses environment variables for configuration. You can use either a `.env` file or a `.config` file.
+KITH uses environment variables for configuration. You can use a `.env` file.
 
 ```bash
 # Create your configuration from the examples
@@ -54,6 +56,13 @@ Open `.env` and configure your settings:
 - **ADMIN_PASSWORD:** Required if `SEED_ADMIN` is true.
 
 ### 4. Run the Application
+# docker (RECOMMENDED)
+```bash
+#simply spin up a docker container by running as admin.
+docker compose build 
+docker compose up
+```
+## To run without docker.
 ```bash
 python app.py
 ```
@@ -62,7 +71,7 @@ Open `http://localhost:5000` in your browser.
 ---
 
 ## Administration
-
+Visit the homepage or open `http://localhost:5000/admin` in your browser to acess the admin panel.
 ### Admin Seeding
 By setting `SEED_ADMIN=true` in your configuration, the application will create a default admin account on startup using the `ADMIN_USERNAME` and `ADMIN_PASSWORD` you provided.
 
@@ -77,6 +86,10 @@ flask create-admin <username> <password>
 flask list-users
 ```
 
+# This can be done with the docker container as well for example: 
+```bash
+docker compose exec web flask create-admin kith_admin secretPass123
+```
 ---
 
 ## Technical Stack (100% FOSS)
