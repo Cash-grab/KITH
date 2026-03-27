@@ -1,8 +1,6 @@
 import click
 from flask.cli import with_appcontext
 
-from app import db, User
-
 
 @click.command("create-admin")
 @click.argument("username")
@@ -24,4 +22,5 @@ def create_admin(username, password):
 
 def init_app(flask_app):
     """Register CLI commands on the Flask app."""
+    from app import db, User
     flask_app.cli.add_command(create_admin)

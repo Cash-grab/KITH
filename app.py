@@ -133,9 +133,6 @@ def init_db():
     # In production, __do not__ auto-create an admin with fixed credentials.
     # This only executes when `SEED_ADMIN` environment variable is set.
 
-    #   TO-DO - Add a command line option to create an admin user with custom credentials, and remove the default admin seeding for better security.
-    # Enable admin seeding by wrting in .env.
-
     if os.getenv("SEED_ADMIN", "false").lower() in ("1", "true", "yes"):
         admin_username = os.getenv("ADMIN_USERNAME", "admin")
         admin_password = os.getenv("ADMIN_PASSWORD", None)
